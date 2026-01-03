@@ -1,0 +1,54 @@
+{
+    "name": "nutandc/laravel-postman-generator",
+    "type": "library",
+    "description": "Laravel Postman Documentation Generator with Postman v2.1 and OpenAPI outputs.",
+    "license": "MIT",
+    "homepage": "https://github.com/Nutandc/Laravel-Postman-Generator",
+    "keywords": [
+        "Laravel",
+        "Postman",
+        "OpenAPI",
+        "Documentation",
+        "API",
+        "Generator"
+    ],
+    "autoload": {
+        "psr-4": {
+            "Nutandc\\PostmanGenerator\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Nutan Dahal",
+            "email": "info@dahalnutan.com.np"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "illuminate/support": "^10.0|^11.0|^12.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.0",
+        "friendsofphp/php-cs-fixer": "^3.92",
+        "orchestra/testbench": "^8.0|^9.0|^10.0"
+    },
+    "scripts": {
+        "test": "phpunit",
+        "fix": "php-cs-fixer fix",
+        "fix:dry": "php-cs-fixer fix --dry-run --diff"
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Nutandc\\PostmanGenerator\\Providers\\PostmanGeneratorServiceProvider"
+            ]
+        }
+    }
+}
