@@ -12,6 +12,7 @@ Laravel package to generate Postman v2.1 collections and OpenAPI 3.0 specs from 
 - Postman v2.1 collection output
 - OpenAPI 3.0 JSON output
 - Route metadata via PHP attributes
+- FormRequest rule parsing for body/query examples
 - Group routes into folders (by URI, name, or tag)
 - Auth support (bearer, api key, basic)
 - Default headers and sample payloads
@@ -102,6 +103,11 @@ return [
     ],
     'output' => [
         'path' => storage_path('app/postman'),
+    ],
+    'scan' => [
+        'form_request' => [
+            'enabled' => env('POSTMAN_GENERATOR_FORM_REQUEST_ENABLED', true),
+        ],
     ],
     'auth' => [
         'default' => 'bearer',

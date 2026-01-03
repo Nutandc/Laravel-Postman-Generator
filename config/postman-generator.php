@@ -24,6 +24,9 @@ return [
         'exclude_route_names' => ['debugbar.', 'log-viewer.', 'clockwork.', 'telescope.', 'horizon.', 'ignition.'],
         'only_middleware' => [],
         'exclude_middleware' => ['web'],
+        'form_request' => [
+            'enabled' => filter_var(env('POSTMAN_GENERATOR_FORM_REQUEST_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
+        ],
     ],
 
     'auth' => [

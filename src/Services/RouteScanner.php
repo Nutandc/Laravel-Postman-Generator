@@ -4,20 +4,27 @@ declare(strict_types=1);
 
 namespace Nutandc\PostmanGenerator\Services;
 
+use Illuminate\Contracts\Container\Container;
+use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Routing\Route;
 use Illuminate\Routing\Router;
 use Nutandc\PostmanGenerator\Attributes\EndpointDoc;
 use Nutandc\PostmanGenerator\Contracts\EndpointScannerInterface;
+use Nutandc\PostmanGenerator\Helpers\ValidationRulesParser;
 use Nutandc\PostmanGenerator\ValueObjects\Endpoint;
 use Nutandc\PostmanGenerator\ValueObjects\Header;
 use Nutandc\PostmanGenerator\ValueObjects\Parameter;
 use ReflectionClass;
 use ReflectionMethod;
+use ReflectionNamedType;
+use Throwable;
 
 final class RouteScanner implements EndpointScannerInterface
 {
     public function __construct(
         private readonly Router $router,
+        private readonly Container $container,
+        private readonly ValidationRulesParser $rulesParser,
         /** @var array<string, mixed> */
         private readonly array $config,
     ) {
@@ -149,6 +156,10 @@ final class RouteScanner implements EndpointScannerInterface
             $deprecated = (bool) ($meta['deprecated'] ?? false);
         }
 
+        $autoParams = $this->resolveFormRequestParams($route, $methods);
+        $queryParams = $this->mergeParams($autoParams['query'], $queryParams);
+        $bodyParams = $this->mergeParams($autoParams['body'], $bodyParams);
+
         $group = $this->resolveGroup($route, $tags);
 
         return new Endpoint(
@@ -229,6 +240,109 @@ final class RouteScanner implements EndpointScannerInterface
     }
 
     /**
+     * @param string[] $methods
+     * @return array{query: Parameter[], body: Parameter[]}
+     */
+    private function resolveFormRequestParams(Route $route, array $methods): array
+    {
+        $enabled = (bool) $this->configValue('scan.form_request.enabled', true);
+        if (! $enabled) {
+            return ['query' => [], 'body' => []];
+        }
+
+        $requestClass = $this->resolveFormRequestClass($route);
+        if ($requestClass === null) {
+            return ['query' => [], 'body' => []];
+        }
+
+        $rules = $this->resolveFormRequestRules($requestClass);
+        if ($rules === []) {
+            return ['query' => [], 'body' => []];
+        }
+
+        $params = $this->rulesParser->parametersFromRules($rules);
+        if ($params === []) {
+            return ['query' => [], 'body' => []];
+        }
+
+        if ($this->isQueryOnly($methods)) {
+            return ['query' => $params, 'body' => []];
+        }
+
+        return ['query' => [], 'body' => $params];
+    }
+
+    private function resolveFormRequestClass(Route $route): ?string
+    {
+        $action = $route->getActionName();
+        if ($action === 'Closure' || ! str_contains($action, '@')) {
+            return null;
+        }
+
+        [$class, $method] = explode('@', $action);
+        if (! class_exists($class)) {
+            return null;
+        }
+
+        $reflection = new ReflectionClass($class);
+        if (! $reflection->hasMethod($method)) {
+            return null;
+        }
+
+        $methodRef = $reflection->getMethod($method);
+        foreach ($methodRef->getParameters() as $parameter) {
+            $type = $parameter->getType();
+            if (! $type instanceof ReflectionNamedType || $type->isBuiltin()) {
+                continue;
+            }
+
+            $typeName = $type->getName();
+            if (is_subclass_of($typeName, FormRequest::class)) {
+                return $typeName;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function resolveFormRequestRules(string $requestClass): array
+    {
+        $request = $this->createFormRequestInstance($requestClass);
+        if ($request === null || ! method_exists($request, 'rules')) {
+            return [];
+        }
+
+        $rules = $request->rules();
+        if (! is_array($rules)) {
+            return [];
+        }
+
+        return $rules;
+    }
+
+    private function createFormRequestInstance(string $requestClass): ?object
+    {
+        try {
+            $request = new $requestClass();
+        } catch (Throwable) {
+            try {
+                $request = (new ReflectionClass($requestClass))->newInstanceWithoutConstructor();
+            } catch (Throwable) {
+                return null;
+            }
+        }
+
+        if ($request instanceof FormRequest && method_exists($request, 'setContainer')) {
+            $request->setContainer($this->container);
+        }
+
+        return $request;
+    }
+
+    /**
      * @param array<int, array{name: string, type: string, required: bool, description?: string, example?: mixed}> $definitions
      * @return Parameter[]
      */
@@ -246,6 +360,33 @@ final class RouteScanner implements EndpointScannerInterface
         }
 
         return $params;
+    }
+
+    /**
+     * @param Parameter[] $base
+     * @param Parameter[] $overrides
+     * @return Parameter[]
+     */
+    private function mergeParams(array $base, array $overrides): array
+    {
+        $merged = [];
+        foreach ($base as $param) {
+            $merged[$param->name] = $param;
+        }
+
+        foreach ($overrides as $param) {
+            $merged[$param->name] = $param;
+        }
+
+        return array_values($merged);
+    }
+
+    /**
+     * @param string[] $methods
+     */
+    private function isQueryOnly(array $methods): bool
+    {
+        return $methods === ['GET'];
     }
 
     /**

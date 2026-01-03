@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Support;
 
 use Nutandc\PostmanGenerator\Attributes\EndpointDoc;
+use Tests\Support\UserRequest;
 
 final class TestController
 {
@@ -30,6 +31,14 @@ final class TestController
         ['name' => 'X-Client-ID', 'value' => 'client-id', 'required' => true],
     ])]
     public function store(): array
+    {
+        return ['ok' => true];
+    }
+
+    /**
+     * @return array<string, bool>
+     */
+    public function storeWithRequest(UserRequest $request): array
     {
         return ['ok' => true];
     }
