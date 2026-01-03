@@ -247,7 +247,7 @@ final class PostmanCollectionBuilder
     }
 
     /**
-     * @param array<int, array{name: string, value: string, required?: bool, description?: string}> $definitions
+     * @param array<int, array{name?: string, value?: string, required?: bool, description?: string}> $definitions
      * @return Header[]
      */
     private function buildHeaderObjects(array $definitions): array
@@ -495,6 +495,11 @@ final class PostmanCollectionBuilder
      * @param array<string, mixed> $request
      * @return array<int, array<string, mixed>>
      */
+    /**
+     * @param array<string, mixed> $config
+     * @param array<string, mixed> $request
+     * @return array<int, array<string, mixed>>
+     */
     private function buildResponses(array $config, Endpoint $endpoint, array $request): array
     {
         $responses = $endpoint->responses;
@@ -530,6 +535,9 @@ final class PostmanCollectionBuilder
         return $result;
     }
 
+    /**
+     * @param array<string, mixed> $config
+     */
     private function autoResponseFromRequest(array $config, Endpoint $endpoint): ?ResponseDefinition
     {
         $example = null;

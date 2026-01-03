@@ -217,7 +217,8 @@ final class OpenApiBuilder
     }
 
     /**
-     * @return array<string, mixed>
+     * @param array<string, mixed> $config
+     * @return array<int|string, array<string, mixed>>
      */
     private function buildResponses(array $config, Endpoint $endpoint): array
     {
@@ -335,6 +336,9 @@ final class OpenApiBuilder
         };
     }
 
+    /**
+     * @param array<string, mixed> $config
+     */
     private function autoResponseFromRequest(array $config, Endpoint $endpoint): ?\Nutandc\PostmanGenerator\ValueObjects\ResponseDefinition
     {
         $example = null;

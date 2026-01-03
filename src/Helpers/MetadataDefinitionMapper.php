@@ -11,7 +11,7 @@ use Nutandc\PostmanGenerator\ValueObjects\ResponseDefinition;
 final class MetadataDefinitionMapper
 {
     /**
-     * @param array<int, array{name: string, type: string, required: bool, description?: string, example?: mixed}> $definitions
+     * @param array<int, array{name?: string, type?: string, required?: bool, description?: string, example?: mixed}> $definitions
      * @return Parameter[]
      */
     public function parameters(array $definitions): array
@@ -35,7 +35,7 @@ final class MetadataDefinitionMapper
     }
 
     /**
-     * @param array<int, array{name: string, value: string, required?: bool, description?: string}> $definitions
+     * @param array<int, array{name?: string, value?: string, required?: bool, description?: string}> $definitions
      * @return Header[]
      */
     public function headers(array $definitions): array
@@ -58,7 +58,7 @@ final class MetadataDefinitionMapper
     }
 
     /**
-     * @param array<int, array{status: int, description?: string, body?: mixed, example?: mixed, headers?: array<int, array{name: string, value: string, required?: bool, description?: string}>, media_type?: string}> $definitions
+     * @param array<int, array{status?: int, description?: string, body?: mixed, example?: mixed, headers?: array<int, array{name?: string, value?: string, required?: bool, description?: string}>, media_type?: string}> $definitions
      * @return ResponseDefinition[]
      */
     public function responses(array $definitions): array
