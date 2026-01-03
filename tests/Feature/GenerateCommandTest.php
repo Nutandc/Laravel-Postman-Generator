@@ -25,6 +25,7 @@ final class GenerateCommandTest extends TestCase
         $this->artisan('postman:generate')->assertExitCode(0);
 
         $this->assertTrue(File::exists(storage_path('app/postman-test/collection.json')));
+        $this->assertTrue(File::exists(storage_path('app/postman-test/environment.local.json')));
         $this->assertTrue(File::exists(storage_path('app/postman-test/openapi.json')));
     }
 }

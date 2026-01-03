@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Nutandc\PostmanGenerator\Helpers;
 
 use Nutandc\PostmanGenerator\ValueObjects\Parameter;
+use ReflectionObject;
+use ReflectionProperty;
 
 final class ValidationRulesParser
 {
@@ -57,6 +59,16 @@ final class ValidationRulesParser
             }
 
             return $flattened;
+        }
+
+        $enumValues = $this->tryEnumValues($rules);
+        if ($enumValues !== []) {
+            return $this->normalizeRules('in:' . implode(',', $enumValues));
+        }
+
+        $inValues = $this->tryInValues($rules);
+        if ($inValues !== []) {
+            return $this->normalizeRules('in:' . implode(',', $inValues));
         }
 
         if (is_object($rules) && method_exists($rules, '__toString')) {
@@ -228,5 +240,69 @@ final class ValidationRulesParser
     private function ruleName(string $rule): string
     {
         return explode(':', $rule, 2)[0];
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function tryEnumValues(mixed $rule): array
+    {
+        $enumRuleClass = 'Illuminate\\Validation\\Rules\\Enum';
+        if (! is_object($rule) || get_class($rule) !== $enumRuleClass) {
+            return [];
+        }
+
+        $enumClass = $this->extractRuleValue($rule, 'type');
+        if (! is_string($enumClass) || ! enum_exists($enumClass)) {
+            return [];
+        }
+
+        $values = [];
+        foreach ($enumClass::cases() as $case) {
+            $values[] = $case instanceof \BackedEnum ? (string) $case->value : $case->name;
+        }
+
+        return $values;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function tryInValues(mixed $rule): array
+    {
+        $inRuleClass = 'Illuminate\\Validation\\Rules\\In';
+        if (! is_object($rule) || get_class($rule) !== $inRuleClass) {
+            return [];
+        }
+
+        return $this->extractRuleValues($rule, 'values');
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function extractRuleValues(object $rule, string $property): array
+    {
+        $values = $this->extractRuleValue($rule, $property);
+        if (! is_array($values)) {
+            return [];
+        }
+
+        return array_values(array_map('strval', $values));
+    }
+
+    private function extractRuleValue(object $rule, string $property): mixed
+    {
+        $reflection = new ReflectionObject($rule);
+        if (! $reflection->hasProperty($property)) {
+            return null;
+        }
+
+        $prop = $reflection->getProperty($property);
+        if ($prop instanceof ReflectionProperty) {
+            $prop->setAccessible(true);
+        }
+
+        return $prop->getValue($rule);
     }
 }

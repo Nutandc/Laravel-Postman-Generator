@@ -11,6 +11,10 @@ return [
             'enabled' => env('POSTMAN_GENERATOR_POSTMAN_ENABLED', true),
             'filename' => env('POSTMAN_GENERATOR_POSTMAN_FILENAME', 'collection.json'),
         ],
+        'environment' => [
+            'enabled' => env('POSTMAN_GENERATOR_ENVIRONMENT_ENABLED', true),
+            'filename' => env('POSTMAN_GENERATOR_ENVIRONMENT_FILENAME', 'environment.{name}.json'),
+        ],
         'openapi' => [
             'enabled' => env('POSTMAN_GENERATOR_OPENAPI_ENABLED', true),
             'filename' => env('POSTMAN_GENERATOR_OPENAPI_FILENAME', 'openapi.json'),
@@ -22,11 +26,23 @@ return [
         'include_prefixes' => [],
         'exclude_prefixes' => ['_ignition', 'telescope', 'horizon', '_debugbar', 'debugbar', '__clockwork', 'clockwork', 'log-viewer'],
         'exclude_route_names' => ['debugbar.', 'log-viewer.', 'clockwork.', 'telescope.', 'horizon.', 'ignition.'],
+        'include_tags' => [],
+        'exclude_tags' => [],
+        'include_namespaces' => [],
+        'exclude_namespaces' => [],
+        'include_domains' => [],
+        'exclude_domains' => [],
         'only_middleware' => [],
         'exclude_middleware' => ['web'],
         'form_request' => [
             'enabled' => filter_var(env('POSTMAN_GENERATOR_FORM_REQUEST_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
         ],
+    ],
+
+    'metadata_providers' => [
+        \Nutandc\PostmanGenerator\Metadata\Providers\FormRequestMetadataProvider::class,
+        \Nutandc\PostmanGenerator\Metadata\Providers\AttributeMetadataProvider::class,
+        \Nutandc\PostmanGenerator\Metadata\Providers\OverridesMetadataProvider::class,
     ],
 
     'auth' => [
@@ -43,6 +59,12 @@ return [
             'username' => env('POSTMAN_GENERATOR_BASIC_USER', ''),
             'password' => env('POSTMAN_GENERATOR_BASIC_PASS', ''),
         ],
+    ],
+
+    'responses' => [
+        'auto_from_request' => filter_var(env('POSTMAN_GENERATOR_RESPONSE_AUTO_FROM_REQUEST', true), FILTER_VALIDATE_BOOLEAN),
+        'default_status' => (int) env('POSTMAN_GENERATOR_RESPONSE_DEFAULT_STATUS', 200),
+        'default_description' => env('POSTMAN_GENERATOR_RESPONSE_DEFAULT_DESCRIPTION', 'OK'),
     ],
 
     'headers' => [
@@ -77,6 +99,9 @@ return [
         //     'body' => [
         //         ['name' => 'email', 'type' => 'string', 'required' => true, 'example' => 'user@example.com'],
         //     ],
+        //     'responses' => [
+        //         ['status' => 200, 'description' => 'OK', 'body' => ['data' => ['id' => 1]]],
+        //     ],
         // ],
     ],
 
@@ -94,6 +119,16 @@ return [
             'base_url' => env('POSTMAN_GENERATOR_POSTMAN_BASE_URL', env('POSTMAN_GENERATOR_BASE_URL', env('APP_URL', 'http://localhost'))),
             'token' => env('POSTMAN_GENERATOR_POSTMAN_TOKEN', ''),
             'api_key' => env('POSTMAN_GENERATOR_POSTMAN_API_KEY', ''),
+        ],
+        'environment' => [
+            'name' => env('POSTMAN_GENERATOR_ENVIRONMENT_NAME', 'local'),
+        ],
+        'environments' => [
+            'local' => [
+                'base_url' => env('POSTMAN_GENERATOR_ENV_LOCAL_BASE_URL', env('POSTMAN_GENERATOR_BASE_URL', env('APP_URL', 'http://localhost'))),
+                'token' => env('POSTMAN_GENERATOR_ENV_LOCAL_TOKEN', ''),
+                'api_key' => env('POSTMAN_GENERATOR_ENV_LOCAL_API_KEY', ''),
+            ],
         ],
         'grouping' => [
             'enabled' => filter_var(env('POSTMAN_GENERATOR_GROUPING_ENABLED', true), FILTER_VALIDATE_BOOLEAN),

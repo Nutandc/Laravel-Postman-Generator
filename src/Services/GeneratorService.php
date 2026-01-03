@@ -8,6 +8,7 @@ use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Facades\Config;
 use Nutandc\PostmanGenerator\Builders\OpenApiBuilder;
 use Nutandc\PostmanGenerator\Builders\PostmanCollectionBuilder;
+use Nutandc\PostmanGenerator\Builders\PostmanEnvironmentBuilder;
 use Nutandc\PostmanGenerator\Contracts\EndpointScannerInterface;
 use Nutandc\PostmanGenerator\Exceptions\GeneratorException;
 
@@ -17,6 +18,7 @@ final class GeneratorService
         private readonly Filesystem $files,
         private readonly EndpointScannerInterface $scanner,
         private readonly PostmanCollectionBuilder $postmanBuilder,
+        private readonly PostmanEnvironmentBuilder $environmentBuilder,
         private readonly OpenApiBuilder $openApiBuilder,
     ) {
     }
@@ -41,6 +43,16 @@ final class GeneratorService
             $collection = $this->postmanBuilder->build($config, $endpoints);
             $file = $this->writeJson($outputPath, (string) data_get($config, 'output.postman.filename', 'collection.json'), $collection);
             $results['postman'] = $file;
+        }
+
+        if ((bool) data_get($config, 'output.environment.enabled', true)) {
+            $environments = $this->environmentBuilder->buildAll($config);
+            foreach ($environments as $name => $payload) {
+                $filename = (string) data_get($config, 'output.environment.filename', 'environment.{name}.json');
+                $filename = str_replace('{name}', (string) $name, $filename);
+                $file = $this->writeJson($outputPath, $filename, $payload);
+                $results['environment.' . $name] = $file;
+            }
         }
 
         if ((bool) data_get($config, 'output.openapi.enabled', true)) {

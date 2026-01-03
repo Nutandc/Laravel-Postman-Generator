@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Support;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 final class UserRequest extends FormRequest
 {
@@ -16,7 +17,7 @@ final class UserRequest extends FormRequest
         return [
             'email' => 'required|email',
             'age' => 'nullable|integer',
-            'status' => 'in:active,inactive',
+            'status' => [Rule::in(['active', 'inactive'])],
         ];
     }
 

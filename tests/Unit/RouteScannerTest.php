@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
-use Nutandc\PostmanGenerator\Services\RouteScanner;
-use Nutandc\PostmanGenerator\Helpers\ValidationRulesParser;
+use Nutandc\PostmanGenerator\Contracts\EndpointScannerInterface;
 use Tests\Support\TestController;
 use Tests\TestCase;
 
@@ -17,7 +16,7 @@ final class RouteScannerTest extends TestCase
         $this->app['router']->get('_debugbar/open', [TestController::class, 'index'])->name('debugbar.openhandler');
         $this->app['router']->post('api/users/request', [TestController::class, 'storeWithRequest'])->name('users.request');
 
-        $scanner = new RouteScanner($this->app['router'], $this->app, new ValidationRulesParser(), config('postman-generator'));
+        $scanner = $this->app->make(EndpointScannerInterface::class);
         $endpoints = $scanner->scan();
 
         $this->assertCount(2, $endpoints);

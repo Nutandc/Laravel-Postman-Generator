@@ -29,6 +29,8 @@ final class TestController
         ['name' => 'email', 'type' => 'string', 'required' => true, 'example' => 'user@example.com'],
     ], headers: [
         ['name' => 'X-Client-ID', 'value' => 'client-id', 'required' => true],
+    ], responses: [
+        ['status' => 201, 'description' => 'Created', 'body' => ['data' => ['id' => 1]]],
     ])]
     public function store(): array
     {

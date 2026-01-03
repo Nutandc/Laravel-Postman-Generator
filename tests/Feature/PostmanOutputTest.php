@@ -31,6 +31,7 @@ final class PostmanOutputTest extends TestCase
 
         $requests = $this->flattenRequests($payload['item'] ?? []);
         $request = $requests['Create user']['request'] ?? [];
+        $responses = $requests['Create user']['response'] ?? [];
 
         $this->assertSame('POST', $request['method'] ?? null);
         $this->assertSame('{{base_url}}/api/users', $request['url']['raw'] ?? null);
@@ -41,6 +42,10 @@ final class PostmanOutputTest extends TestCase
 
         $body = json_decode((string) ($request['body']['raw'] ?? ''), true);
         $this->assertSame('user@example.com', $body['email'] ?? null);
+
+        $this->assertSame(201, $responses[0]['code'] ?? null);
+        $responseBody = json_decode((string) ($responses[0]['body'] ?? ''), true);
+        $this->assertSame(1, $responseBody['data']['id'] ?? null);
     }
 
     /**

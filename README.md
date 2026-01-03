@@ -17,6 +17,9 @@ Laravel package to generate Postman v2.1 collections and OpenAPI 3.0 specs from 
 - Auth support (bearer, api key, basic)
 - Default headers and sample payloads
 - Postman variables for base URL and tokens
+- Postman environment output
+- Response examples via attributes/overrides or auto from request rules
+- Extensible metadata providers
 - Configurable output paths
 
 ## Requirements
@@ -60,7 +63,10 @@ use Nutandc\PostmanGenerator\Attributes\EndpointDoc;
     ],
     query: [
         ['name' => 'page', 'type' => 'integer', 'required' => false, 'example' => 2],
-    ]
+    ],
+    responses: [
+        ['status' => 200, 'description' => 'OK', 'body' => ['data' => ['id' => 1]]],
+    ],
 )]
 public function index() {}
 ```
@@ -109,8 +115,18 @@ return [
             'enabled' => env('POSTMAN_GENERATOR_FORM_REQUEST_ENABLED', true),
         ],
     ],
+    'metadata_providers' => [
+        \Nutandc\PostmanGenerator\Metadata\Providers\FormRequestMetadataProvider::class,
+        \Nutandc\PostmanGenerator\Metadata\Providers\AttributeMetadataProvider::class,
+        \Nutandc\PostmanGenerator\Metadata\Providers\OverridesMetadataProvider::class,
+    ],
     'auth' => [
         'default' => 'bearer',
+    ],
+    'responses' => [
+        'auto_from_request' => env('POSTMAN_GENERATOR_RESPONSE_AUTO_FROM_REQUEST', true),
+        'default_status' => env('POSTMAN_GENERATOR_RESPONSE_DEFAULT_STATUS', 200),
+        'default_description' => env('POSTMAN_GENERATOR_RESPONSE_DEFAULT_DESCRIPTION', 'OK'),
     ],
     'postman' => [
         'use_base_url_variable' => true,
@@ -119,8 +135,31 @@ return [
             'token' => env('POSTMAN_GENERATOR_POSTMAN_TOKEN'),
             'api_key' => env('POSTMAN_GENERATOR_POSTMAN_API_KEY'),
         ],
+        'environments' => [
+            'local' => [
+                'base_url' => env('POSTMAN_GENERATOR_ENV_LOCAL_BASE_URL'),
+                'token' => env('POSTMAN_GENERATOR_ENV_LOCAL_TOKEN'),
+                'api_key' => env('POSTMAN_GENERATOR_ENV_LOCAL_API_KEY'),
+            ],
+        ],
     ],
 ];
+```
+
+## Environment Output
+Environment files are generated alongside the collection:
+```bash
+storage/app/postman/environment.local.json
+```
+
+## Filters
+```php
+'scan' => [
+    'include_tags' => ['Users'],
+    'exclude_tags' => ['Internal'],
+    'include_namespaces' => ['App\\Http\\Controllers\\Api'],
+    'exclude_domains' => ['telescope'],
+],
 ```
 
 ## Testing

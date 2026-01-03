@@ -60,11 +60,7 @@ final class OpenApiBuilder
             'tags' => $endpoint->tags,
             'deprecated' => $endpoint->deprecated,
             'parameters' => $parameters,
-            'responses' => [
-                '200' => [
-                    'description' => 'Successful response',
-                ],
-            ],
+            'responses' => $this->buildResponses($config, $endpoint),
         ];
 
         if ($endpoint->bodyParams !== [] && in_array($method, ['POST', 'PUT', 'PATCH'], true)) {
@@ -218,5 +214,146 @@ final class OpenApiBuilder
     private function exampleValue(Parameter $param): mixed
     {
         return $param->example ?? ExampleValueResolver::valueForType($param->type);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildResponses(array $config, Endpoint $endpoint): array
+    {
+        $responses = $endpoint->responses;
+        if ($responses === [] && (bool) data_get($config, 'responses.auto_from_request', true)) {
+            $auto = $this->autoResponseFromRequest($config, $endpoint);
+            if ($auto !== null) {
+                $responses = [$auto];
+            }
+        }
+
+        if ($responses === []) {
+            return [
+                '200' => [
+                    'description' => 'Successful response',
+                ],
+            ];
+        }
+
+        $result = [];
+        foreach ($responses as $response) {
+            $entry = [
+                'description' => $response->description !== '' ? $response->description : $this->statusName($response->status),
+            ];
+
+            if ($response->headers !== []) {
+                $entry['headers'] = $this->buildResponseHeaders($response->headers);
+            }
+
+            if ($response->body !== null) {
+                $mediaType = $response->mediaType ?? 'application/json';
+                $entry['content'] = [
+                    $mediaType => [
+                        'schema' => $this->schemaFromBody($response->body),
+                        'example' => $response->body,
+                    ],
+                ];
+            }
+
+            $result[(string) $response->status] = $entry;
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param \Nutandc\PostmanGenerator\ValueObjects\Header[] $headers
+     * @return array<string, array<string, mixed>>
+     */
+    private function buildResponseHeaders(array $headers): array
+    {
+        $result = [];
+        foreach ($headers as $header) {
+            $result[$header->name] = [
+                'description' => $header->description ?? '',
+                'schema' => [
+                    'type' => 'string',
+                ],
+                'example' => $header->value,
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function schemaFromBody(mixed $body): array
+    {
+        if (is_array($body)) {
+            if (array_is_list($body)) {
+                return [
+                    'type' => 'array',
+                    'items' => $body !== [] ? $this->schemaFromBody($body[0]) : ['type' => 'string'],
+                ];
+            }
+
+            return [
+                'type' => 'object',
+            ];
+        }
+
+        if (is_numeric($body)) {
+            return [
+                'type' => 'number',
+            ];
+        }
+
+        if (is_bool($body)) {
+            return [
+                'type' => 'boolean',
+            ];
+        }
+
+        return [
+            'type' => 'string',
+        ];
+    }
+
+    private function statusName(int $status): string
+    {
+        return match ($status) {
+            200 => 'OK',
+            201 => 'Created',
+            202 => 'Accepted',
+            204 => 'No Content',
+            400 => 'Bad Request',
+            401 => 'Unauthorized',
+            403 => 'Forbidden',
+            404 => 'Not Found',
+            422 => 'Unprocessable Entity',
+            500 => 'Server Error',
+            default => 'Status ' . $status,
+        };
+    }
+
+    private function autoResponseFromRequest(array $config, Endpoint $endpoint): ?\Nutandc\PostmanGenerator\ValueObjects\ResponseDefinition
+    {
+        $example = null;
+        if ($endpoint->bodyParams !== []) {
+            $example = $this->buildBodyExample($endpoint->bodyParams);
+        } elseif ($endpoint->queryParams !== []) {
+            $example = $this->buildBodyExample($endpoint->queryParams);
+        }
+
+        if ($example === null) {
+            return null;
+        }
+
+        return new \Nutandc\PostmanGenerator\ValueObjects\ResponseDefinition(
+            status: (int) data_get($config, 'responses.default_status', 200),
+            description: (string) data_get($config, 'responses.default_description', 'OK'),
+            headers: [],
+            body: $example,
+            mediaType: 'application/json',
+        );
     }
 }

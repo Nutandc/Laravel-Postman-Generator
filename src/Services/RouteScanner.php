@@ -4,27 +4,18 @@ declare(strict_types=1);
 
 namespace Nutandc\PostmanGenerator\Services;
 
-use Illuminate\Contracts\Container\Container;
-use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Routing\Route;
 use Illuminate\Routing\Router;
-use Nutandc\PostmanGenerator\Attributes\EndpointDoc;
 use Nutandc\PostmanGenerator\Contracts\EndpointScannerInterface;
-use Nutandc\PostmanGenerator\Helpers\ValidationRulesParser;
 use Nutandc\PostmanGenerator\ValueObjects\Endpoint;
-use Nutandc\PostmanGenerator\ValueObjects\Header;
+use Nutandc\PostmanGenerator\ValueObjects\EndpointMetadata;
 use Nutandc\PostmanGenerator\ValueObjects\Parameter;
-use ReflectionClass;
-use ReflectionMethod;
-use ReflectionNamedType;
-use Throwable;
 
 final class RouteScanner implements EndpointScannerInterface
 {
     public function __construct(
         private readonly Router $router,
-        private readonly Container $container,
-        private readonly ValidationRulesParser $rulesParser,
+        private readonly EndpointMetadataResolver $metadataResolver,
         /** @var array<string, mixed> */
         private readonly array $config,
     ) {
@@ -42,34 +33,39 @@ final class RouteScanner implements EndpointScannerInterface
                 continue;
             }
 
-            if (! $this->isAllowed($route)) {
+            $methods = $this->filterMethods($route->methods());
+            if ($methods === []) {
                 continue;
             }
 
-            $endpoints[] = $this->buildEndpoint($route);
+            $metadata = $this->metadataResolver->resolve($route);
+
+            if (! $this->isAllowed($route, $metadata, $methods)) {
+                continue;
+            }
+
+            $endpoints[] = $this->buildEndpoint($route, $metadata, $methods);
         }
 
         return $endpoints;
     }
 
-    private function isAllowed(Route $route): bool
+    /**
+     * @param string[] $methods
+     */
+    private function isAllowed(Route $route, EndpointMetadata $metadata, array $methods): bool
     {
         $uri = ltrim($route->uri(), '/');
-        $methods = $this->filterMethods($route->methods());
-
-        if ($methods === []) {
-            return false;
-        }
 
         foreach ($this->configValue('scan.exclude_prefixes', []) as $prefix) {
-            if ($prefix !== '' && str_starts_with($uri, trim($prefix, '/'))) {
+            if ($prefix !== '' && str_starts_with($uri, trim((string) $prefix, '/'))) {
                 return false;
             }
         }
 
         $name = $route->getName();
         foreach ($this->configValue('scan.exclude_route_names', []) as $prefix) {
-            if ($name && $prefix !== '' && str_starts_with($name, $prefix)) {
+            if ($name && $prefix !== '' && str_starts_with($name, (string) $prefix)) {
                 return false;
             }
         }
@@ -78,7 +74,7 @@ final class RouteScanner implements EndpointScannerInterface
         if ($includePrefixes !== []) {
             $matched = false;
             foreach ($includePrefixes as $prefix) {
-                if ($prefix !== '' && str_starts_with($uri, trim($prefix, '/'))) {
+                if ($prefix !== '' && str_starts_with($uri, trim((string) $prefix, '/'))) {
                     $matched = true;
                     break;
                 }
@@ -103,6 +99,18 @@ final class RouteScanner implements EndpointScannerInterface
             }
         }
 
+        if (! $this->passesTagFilter($metadata)) {
+            return false;
+        }
+
+        if (! $this->passesNamespaceFilter($route)) {
+            return false;
+        }
+
+        if (! $this->passesDomainFilter($route)) {
+            return false;
+        }
+
         return true;
     }
 
@@ -122,11 +130,13 @@ final class RouteScanner implements EndpointScannerInterface
         return array_values(array_intersect($methods, $allowed));
     }
 
-    private function buildEndpoint(Route $route): Endpoint
+    /**
+     * @param string[] $methods
+     */
+    private function buildEndpoint(Route $route, EndpointMetadata $metadata, array $methods): Endpoint
     {
         $name = $route->getName() ?: $route->uri();
         $action = $route->getActionName();
-        $methods = $this->filterMethods($route->methods());
         $uri = $route->uri();
 
         $pathParams = [];
@@ -134,282 +144,25 @@ final class RouteScanner implements EndpointScannerInterface
             $pathParams[] = new Parameter($param, 'string', true);
         }
 
-        $summary = null;
-        $description = null;
-        $tags = [];
-        $auth = null;
-        $headers = [];
-        $queryParams = [];
-        $bodyParams = [];
-        $deprecated = false;
-        $group = null;
-
-        $meta = $this->resolveMetadata($route);
-        if ($meta !== []) {
-            $summary = $meta['summary'] ?? null;
-            $description = $meta['description'] ?? null;
-            $tags = $meta['tags'] ?? [];
-            $auth = $meta['auth'] ?? null;
-            $headers = $this->buildHeaders($meta['headers'] ?? []);
-            $queryParams = $this->buildParams($meta['query'] ?? []);
-            $bodyParams = $this->buildParams($meta['body'] ?? []);
-            $deprecated = (bool) ($meta['deprecated'] ?? false);
-        }
-
-        $autoParams = $this->resolveFormRequestParams($route, $methods);
-        $queryParams = $this->mergeParams($autoParams['query'], $queryParams);
-        $bodyParams = $this->mergeParams($autoParams['body'], $bodyParams);
-
-        $group = $this->resolveGroup($route, $tags);
+        $group = $this->resolveGroup($route, $metadata->tags);
 
         return new Endpoint(
             uri: $uri,
             name: (string) $name,
             methods: $methods,
             action: (string) $action,
-            summary: $summary,
-            description: $description,
-            tags: $tags,
-            auth: $auth,
+            summary: $metadata->summary,
+            description: $metadata->description,
+            tags: $metadata->tags,
+            auth: $metadata->auth,
             pathParams: $pathParams,
-            queryParams: $queryParams,
-            bodyParams: $bodyParams,
-            deprecated: $deprecated,
+            queryParams: $metadata->queryParams,
+            bodyParams: $metadata->bodyParams,
+            deprecated: (bool) ($metadata->deprecated ?? false),
             group: $group,
-            headers: $headers,
+            headers: $metadata->headers,
+            responses: $metadata->responses,
         );
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function resolveMetadata(Route $route): array
-    {
-        $overrides = $this->configValue('overrides', []);
-        $name = $route->getName();
-        if ($name && isset($overrides[$name]) && is_array($overrides[$name])) {
-            return $overrides[$name];
-        }
-
-        $action = $route->getActionName();
-        if ($action === 'Closure') {
-            return [];
-        }
-
-        if (! str_contains($action, '@')) {
-            return [];
-        }
-
-        [$class, $method] = explode('@', $action);
-        if (! class_exists($class)) {
-            return [];
-        }
-
-        $reflection = new ReflectionClass($class);
-        if (! $reflection->hasMethod($method)) {
-            return [];
-        }
-
-        $methodRef = $reflection->getMethod($method);
-
-        return $this->resolveAttribute($methodRef);
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function resolveAttribute(ReflectionMethod $method): array
-    {
-        $attributes = $method->getAttributes(EndpointDoc::class);
-        if ($attributes === []) {
-            return [];
-        }
-
-        $instance = $attributes[0]->newInstance();
-
-        return [
-            'summary' => $instance->summary,
-            'description' => $instance->description,
-            'tags' => $instance->tags,
-            'auth' => $instance->auth,
-            'headers' => $instance->headers,
-            'query' => $instance->query,
-            'body' => $instance->body,
-            'deprecated' => $instance->deprecated,
-        ];
-    }
-
-    /**
-     * @param string[] $methods
-     * @return array{query: Parameter[], body: Parameter[]}
-     */
-    private function resolveFormRequestParams(Route $route, array $methods): array
-    {
-        $enabled = (bool) $this->configValue('scan.form_request.enabled', true);
-        if (! $enabled) {
-            return ['query' => [], 'body' => []];
-        }
-
-        $requestClass = $this->resolveFormRequestClass($route);
-        if ($requestClass === null) {
-            return ['query' => [], 'body' => []];
-        }
-
-        $rules = $this->resolveFormRequestRules($requestClass);
-        if ($rules === []) {
-            return ['query' => [], 'body' => []];
-        }
-
-        $params = $this->rulesParser->parametersFromRules($rules);
-        if ($params === []) {
-            return ['query' => [], 'body' => []];
-        }
-
-        if ($this->isQueryOnly($methods)) {
-            return ['query' => $params, 'body' => []];
-        }
-
-        return ['query' => [], 'body' => $params];
-    }
-
-    private function resolveFormRequestClass(Route $route): ?string
-    {
-        $action = $route->getActionName();
-        if ($action === 'Closure' || ! str_contains($action, '@')) {
-            return null;
-        }
-
-        [$class, $method] = explode('@', $action);
-        if (! class_exists($class)) {
-            return null;
-        }
-
-        $reflection = new ReflectionClass($class);
-        if (! $reflection->hasMethod($method)) {
-            return null;
-        }
-
-        $methodRef = $reflection->getMethod($method);
-        foreach ($methodRef->getParameters() as $parameter) {
-            $type = $parameter->getType();
-            if (! $type instanceof ReflectionNamedType || $type->isBuiltin()) {
-                continue;
-            }
-
-            $typeName = $type->getName();
-            if (is_subclass_of($typeName, FormRequest::class)) {
-                return $typeName;
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function resolveFormRequestRules(string $requestClass): array
-    {
-        $request = $this->createFormRequestInstance($requestClass);
-        if ($request === null || ! method_exists($request, 'rules')) {
-            return [];
-        }
-
-        $rules = $request->rules();
-        if (! is_array($rules)) {
-            return [];
-        }
-
-        return $rules;
-    }
-
-    private function createFormRequestInstance(string $requestClass): ?object
-    {
-        try {
-            $request = new $requestClass();
-        } catch (Throwable) {
-            try {
-                $request = (new ReflectionClass($requestClass))->newInstanceWithoutConstructor();
-            } catch (Throwable) {
-                return null;
-            }
-        }
-
-        if ($request instanceof FormRequest && method_exists($request, 'setContainer')) {
-            $request->setContainer($this->container);
-        }
-
-        return $request;
-    }
-
-    /**
-     * @param array<int, array{name: string, type: string, required: bool, description?: string, example?: mixed}> $definitions
-     * @return Parameter[]
-     */
-    private function buildParams(array $definitions): array
-    {
-        $params = [];
-        foreach ($definitions as $definition) {
-            $params[] = new Parameter(
-                name: $definition['name'],
-                type: $definition['type'],
-                required: $definition['required'],
-                description: $definition['description'] ?? null,
-                example: $definition['example'] ?? null,
-            );
-        }
-
-        return $params;
-    }
-
-    /**
-     * @param Parameter[] $base
-     * @param Parameter[] $overrides
-     * @return Parameter[]
-     */
-    private function mergeParams(array $base, array $overrides): array
-    {
-        $merged = [];
-        foreach ($base as $param) {
-            $merged[$param->name] = $param;
-        }
-
-        foreach ($overrides as $param) {
-            $merged[$param->name] = $param;
-        }
-
-        return array_values($merged);
-    }
-
-    /**
-     * @param string[] $methods
-     */
-    private function isQueryOnly(array $methods): bool
-    {
-        return $methods === ['GET'];
-    }
-
-    /**
-     * @param array<int, array{name: string, value: string, required?: bool, description?: string}> $definitions
-     * @return Header[]
-     */
-    private function buildHeaders(array $definitions): array
-    {
-        $headers = [];
-        foreach ($definitions as $definition) {
-            if (! isset($definition['name'], $definition['value'])) {
-                continue;
-            }
-
-            $headers[] = new Header(
-                name: (string) $definition['name'],
-                value: (string) $definition['value'],
-                required: (bool) ($definition['required'] ?? false),
-                description: $definition['description'] ?? null,
-            );
-        }
-
-        return $headers;
     }
 
     /**
@@ -451,6 +204,106 @@ final class RouteScanner implements EndpointScannerInterface
         $depth = max(1, $depth);
 
         return implode('/', array_slice($segments, 0, $depth));
+    }
+
+    private function passesTagFilter(EndpointMetadata $metadata): bool
+    {
+        $includeTags = (array) $this->configValue('scan.include_tags', []);
+        if ($includeTags !== []) {
+            $matched = false;
+            foreach ($metadata->tags as $tag) {
+                if (in_array($tag, $includeTags, true)) {
+                    $matched = true;
+                    break;
+                }
+            }
+            if (! $matched) {
+                return false;
+            }
+        }
+
+        $excludeTags = (array) $this->configValue('scan.exclude_tags', []);
+        foreach ($metadata->tags as $tag) {
+            if (in_array($tag, $excludeTags, true)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function passesNamespaceFilter(Route $route): bool
+    {
+        $namespace = $this->resolveControllerNamespace($route);
+
+        $include = (array) $this->configValue('scan.include_namespaces', []);
+        if ($include !== [] && $namespace !== null) {
+            $matched = false;
+            foreach ($include as $prefix) {
+                if ($prefix !== '' && str_starts_with($namespace, (string) $prefix)) {
+                    $matched = true;
+                    break;
+                }
+            }
+            if (! $matched) {
+                return false;
+            }
+        }
+
+        $exclude = (array) $this->configValue('scan.exclude_namespaces', []);
+        foreach ($exclude as $prefix) {
+            if ($namespace && $prefix !== '' && str_starts_with($namespace, (string) $prefix)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function passesDomainFilter(Route $route): bool
+    {
+        $domain = (string) ($route->getDomain() ?? '');
+
+        $include = (array) $this->configValue('scan.include_domains', []);
+        if ($include !== []) {
+            $matched = false;
+            foreach ($include as $pattern) {
+                if ($pattern !== '' && str_contains($domain, (string) $pattern)) {
+                    $matched = true;
+                    break;
+                }
+            }
+            if (! $matched) {
+                return false;
+            }
+        }
+
+        $exclude = (array) $this->configValue('scan.exclude_domains', []);
+        foreach ($exclude as $pattern) {
+            if ($pattern !== '' && $domain !== '' && str_contains($domain, (string) $pattern)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function resolveControllerNamespace(Route $route): ?string
+    {
+        $action = $route->getActionName();
+        if (! str_contains($action, '@')) {
+            return null;
+        }
+
+        [$class] = explode('@', $action, 2);
+        if (! str_contains($class, '\\')) {
+            return null;
+        }
+
+        $parts = explode('\\', $class);
+        array_pop($parts);
+
+        return implode('\\', $parts);
     }
 
     private function configValue(string $key, mixed $default): mixed

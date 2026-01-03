@@ -8,6 +8,7 @@ use Nutandc\PostmanGenerator\Helpers\ExampleValueResolver;
 use Nutandc\PostmanGenerator\ValueObjects\Endpoint;
 use Nutandc\PostmanGenerator\ValueObjects\Header;
 use Nutandc\PostmanGenerator\ValueObjects\Parameter;
+use Nutandc\PostmanGenerator\ValueObjects\ResponseDefinition;
 
 final class PostmanCollectionBuilder
 {
@@ -114,10 +115,17 @@ final class PostmanCollectionBuilder
             ];
         }
 
-        return [
+        $item = [
             'name' => $endpoint->summary ?? $endpoint->name,
             'request' => $request,
         ];
+
+        $responses = $this->buildResponses($config, $endpoint, $request);
+        if ($responses !== []) {
+            $item['response'] = $responses;
+        }
+
+        return $item;
     }
 
     /**
@@ -481,5 +489,92 @@ final class PostmanCollectionBuilder
     private function variablePlaceholder(string $key): string
     {
         return '{{' . $key . '}}';
+    }
+
+    /**
+     * @param array<string, mixed> $request
+     * @return array<int, array<string, mixed>>
+     */
+    private function buildResponses(array $config, Endpoint $endpoint, array $request): array
+    {
+        $responses = $endpoint->responses;
+        if ($responses === [] && (bool) data_get($config, 'responses.auto_from_request', true)) {
+            $auto = $this->autoResponseFromRequest($config, $endpoint);
+            if ($auto !== null) {
+                $responses = [$auto];
+            }
+        }
+
+        if ($responses === []) {
+            return [];
+        }
+
+        $result = [];
+        foreach ($responses as $response) {
+            $body = $response->body;
+            if (is_array($body)) {
+                $body = json_encode($body, JSON_PRETTY_PRINT);
+            }
+
+            $result[] = [
+                'name' => $response->description !== '' ? $response->description : $this->statusName($response->status),
+                'originalRequest' => $request,
+                'status' => $this->statusName($response->status),
+                'code' => $response->status,
+                'header' => $this->formatHeaders($response->headers),
+                'body' => $body ?? '',
+                '_postman_previewlanguage' => $this->previewLanguage($response->mediaType),
+            ];
+        }
+
+        return $result;
+    }
+
+    private function autoResponseFromRequest(array $config, Endpoint $endpoint): ?ResponseDefinition
+    {
+        $example = null;
+        if ($endpoint->bodyParams !== []) {
+            $example = $this->buildBodyExample($endpoint->bodyParams);
+        } elseif ($endpoint->queryParams !== []) {
+            $example = $this->buildBodyExample($endpoint->queryParams);
+        }
+
+        if ($example === null) {
+            return null;
+        }
+
+        return new ResponseDefinition(
+            status: (int) data_get($config, 'responses.default_status', 200),
+            description: (string) data_get($config, 'responses.default_description', 'OK'),
+            headers: [],
+            body: $example,
+            mediaType: 'application/json',
+        );
+    }
+
+    private function previewLanguage(?string $mediaType): string
+    {
+        return match ($mediaType) {
+            'application/json' => 'json',
+            'application/xml', 'text/xml' => 'xml',
+            default => 'text',
+        };
+    }
+
+    private function statusName(int $status): string
+    {
+        return match ($status) {
+            200 => 'OK',
+            201 => 'Created',
+            202 => 'Accepted',
+            204 => 'No Content',
+            400 => 'Bad Request',
+            401 => 'Unauthorized',
+            403 => 'Forbidden',
+            404 => 'Not Found',
+            422 => 'Unprocessable Entity',
+            500 => 'Server Error',
+            default => 'Status ' . $status,
+        };
     }
 }
