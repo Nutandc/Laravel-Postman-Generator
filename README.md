@@ -1,9 +1,9 @@
 # Laravel Postman Generator
 
 [![CI](https://github.com/Nutandc/Laravel-Postman-Generator/actions/workflows/ci.yml/badge.svg)](https://github.com/Nutandc/Laravel-Postman-Generator/actions/workflows/ci.yml)
-[![Latest Version](https://poser.pugx.org/nutandc/laravel-postman-generator/version)](https://packagist.org/packages/nutandc/laravel-postman-generator)
-[![Total Downloads](https://poser.pugx.org/nutandc/laravel-postman-generator/d/total)](https://packagist.org/packages/nutandc/laravel-postman-generator)
-[![License](https://poser.pugx.org/nutandc/laravel-postman-generator/license)](LICENSE)
+[![Latest Version](https://img.shields.io/packagist/v/nutandc/laravel-postman-generator)](https://packagist.org/packages/nutandc/laravel-postman-generator)
+[![Total Downloads](https://img.shields.io/packagist/dt/nutandc/laravel-postman-generator)](https://packagist.org/packages/nutandc/laravel-postman-generator)
+[![License](https://img.shields.io/packagist/l/nutandc/laravel-postman-generator)](LICENSE)
 
 Laravel package to generate Postman v2.1 collections and OpenAPI 3.0 specs from your routes.
 
