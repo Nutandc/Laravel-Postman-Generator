@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Tests\Support;
 
 use Nutandc\PostmanGenerator\Attributes\EndpointDoc;
-use Tests\Support\UserRequest;
 
 final class TestController
 {
