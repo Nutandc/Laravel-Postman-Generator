@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nutandc\PostmanGenerator\Builders;
 
+use Nutandc\PostmanGenerator\Helpers\ExampleValueResolver;
 use Nutandc\PostmanGenerator\ValueObjects\Endpoint;
 use Nutandc\PostmanGenerator\ValueObjects\Parameter;
 
@@ -103,7 +104,7 @@ final class OpenApiBuilder
                 'required' => $param->required,
                 'description' => $param->description ?? '',
                 'schema' => [
-                    'type' => $this->mapType($param->type),
+                    'type' => ExampleValueResolver::openApiType($param->type),
                 ],
             ];
         }
@@ -120,7 +121,7 @@ final class OpenApiBuilder
         $properties = [];
         foreach ($params as $param) {
             $properties[$param->name] = [
-                'type' => $this->mapType($param->type),
+                'type' => ExampleValueResolver::openApiType($param->type),
                 'description' => $param->description ?? '',
             ];
         }
@@ -174,25 +175,8 @@ final class OpenApiBuilder
         };
     }
 
-    private function mapType(string $type): string
-    {
-        return match (strtolower($type)) {
-            'integer', 'int' => 'integer',
-            'float', 'double' => 'number',
-            'boolean', 'bool' => 'boolean',
-            'array' => 'array',
-            default => 'string',
-        };
-    }
-
     private function exampleForType(string $type): mixed
     {
-        return match (strtolower($type)) {
-            'integer', 'int' => 1,
-            'float', 'double' => 1.0,
-            'boolean', 'bool' => true,
-            'array' => [],
-            default => 'string',
-        };
+        return ExampleValueResolver::valueForType($type);
     }
 }

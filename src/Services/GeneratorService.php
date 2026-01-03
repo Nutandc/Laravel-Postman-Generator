@@ -8,13 +8,14 @@ use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Facades\Config;
 use Nutandc\PostmanGenerator\Builders\OpenApiBuilder;
 use Nutandc\PostmanGenerator\Builders\PostmanCollectionBuilder;
+use Nutandc\PostmanGenerator\Contracts\EndpointScannerInterface;
 use Nutandc\PostmanGenerator\Exceptions\GeneratorException;
 
 final class GeneratorService
 {
     public function __construct(
         private readonly Filesystem $files,
-        private readonly RouteScanner $scanner,
+        private readonly EndpointScannerInterface $scanner,
         private readonly PostmanCollectionBuilder $postmanBuilder,
         private readonly OpenApiBuilder $openApiBuilder,
     ) {

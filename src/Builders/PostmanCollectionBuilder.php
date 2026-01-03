@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nutandc\PostmanGenerator\Builders;
 
+use Nutandc\PostmanGenerator\Helpers\ExampleValueResolver;
 use Nutandc\PostmanGenerator\ValueObjects\Endpoint;
 use Nutandc\PostmanGenerator\ValueObjects\Parameter;
 
@@ -83,7 +84,7 @@ final class PostmanCollectionBuilder
     {
         $example = [];
         foreach ($params as $param) {
-            $example[$param->name] = $this->exampleForType($param->type);
+            $example[$param->name] = ExampleValueResolver::valueForType($param->type);
         }
 
         return $example;
@@ -103,7 +104,7 @@ final class PostmanCollectionBuilder
         foreach ($endpoint->pathParams as $param) {
             $variables[] = [
                 'key' => $param->name,
-                'value' => $this->exampleForType($param->type),
+                'value' => ExampleValueResolver::valueForType($param->type),
             ];
         }
 
@@ -111,7 +112,7 @@ final class PostmanCollectionBuilder
         foreach ($endpoint->queryParams as $param) {
             $query[] = [
                 'key' => $param->name,
-                'value' => $this->exampleForType($param->type),
+                'value' => ExampleValueResolver::valueForType($param->type),
                 'disabled' => ! $param->required,
             ];
         }
@@ -226,16 +227,5 @@ final class PostmanCollectionBuilder
         ];
 
         return $query;
-    }
-
-    private function exampleForType(string $type): mixed
-    {
-        return match (strtolower($type)) {
-            'integer', 'int' => 1,
-            'float', 'double' => 1.0,
-            'boolean', 'bool' => true,
-            'array' => [],
-            default => 'string',
-        };
     }
 }

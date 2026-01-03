@@ -9,10 +9,11 @@ use Illuminate\Routing\Router;
 use Nutandc\PostmanGenerator\Attributes\EndpointDoc;
 use Nutandc\PostmanGenerator\ValueObjects\Endpoint;
 use Nutandc\PostmanGenerator\ValueObjects\Parameter;
+use Nutandc\PostmanGenerator\Contracts\EndpointScannerInterface;
 use ReflectionClass;
 use ReflectionMethod;
 
-final class RouteScanner
+final class RouteScanner implements EndpointScannerInterface
 {
     public function __construct(
         private readonly Router $router,
