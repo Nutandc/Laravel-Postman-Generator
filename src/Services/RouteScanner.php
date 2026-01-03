@@ -59,6 +59,13 @@ final class RouteScanner implements EndpointScannerInterface
             }
         }
 
+        $name = $route->getName();
+        foreach ($this->configValue('scan.exclude_route_names', []) as $prefix) {
+            if ($name && $prefix !== '' && str_starts_with($name, $prefix)) {
+                return false;
+            }
+        }
+
         $includePrefixes = $this->configValue('scan.include_prefixes', []);
         if ($includePrefixes !== []) {
             $matched = false;
@@ -69,6 +76,15 @@ final class RouteScanner implements EndpointScannerInterface
                 }
             }
             if (! $matched) {
+                return false;
+            }
+        }
+
+        $onlyMiddleware = $this->configValue('scan.only_middleware', []);
+        if ($onlyMiddleware !== []) {
+            $middleware = $route->middleware();
+            $allowed = array_values(array_intersect($onlyMiddleware, $middleware));
+            if ($allowed === []) {
                 return false;
             }
         }
@@ -117,6 +133,7 @@ final class RouteScanner implements EndpointScannerInterface
         $queryParams = [];
         $bodyParams = [];
         $deprecated = false;
+        $group = null;
 
         $meta = $this->resolveMetadata($route);
         if ($meta !== []) {
@@ -128,6 +145,8 @@ final class RouteScanner implements EndpointScannerInterface
             $bodyParams = $this->buildParams($meta['body'] ?? []);
             $deprecated = (bool) ($meta['deprecated'] ?? false);
         }
+
+        $group = $this->resolveGroup($route, $tags);
 
         return new Endpoint(
             uri: $uri,
@@ -142,6 +161,7 @@ final class RouteScanner implements EndpointScannerInterface
             queryParams: $queryParams,
             bodyParams: $bodyParams,
             deprecated: $deprecated,
+            group: $group,
         );
     }
 
@@ -220,6 +240,47 @@ final class RouteScanner implements EndpointScannerInterface
         }
 
         return $params;
+    }
+
+    /**
+     * @param string[] $tags
+     */
+    private function resolveGroup(Route $route, array $tags): ?string
+    {
+        if ($tags !== []) {
+            return (string) $tags[0];
+        }
+
+        $strategy = (string) $this->configValue('postman.grouping.strategy', 'uri');
+        if ($strategy === 'none') {
+            return null;
+        }
+
+        if ($strategy === 'name') {
+            $name = $route->getName();
+            if ($name) {
+                $separator = (string) $this->configValue('postman.grouping.name_separator', '.');
+                return explode($separator, $name)[0] ?: $name;
+            }
+        }
+
+        $uri = ltrim($route->uri(), '/');
+        foreach ($this->configValue('postman.grouping.strip_prefixes', []) as $prefix) {
+            $prefix = trim((string) $prefix, '/');
+            if ($prefix !== '' && str_starts_with($uri, $prefix . '/')) {
+                $uri = substr($uri, strlen($prefix) + 1);
+            }
+        }
+
+        $segments = array_values(array_filter(explode('/', $uri)));
+        if ($segments === []) {
+            return (string) $this->configValue('postman.grouping.fallback', 'General');
+        }
+
+        $depth = (int) $this->configValue('postman.grouping.uri_depth', 1);
+        $depth = max(1, $depth);
+
+        return implode('/', array_slice($segments, 0, $depth));
     }
 
     private function configValue(string $key, mixed $default): mixed

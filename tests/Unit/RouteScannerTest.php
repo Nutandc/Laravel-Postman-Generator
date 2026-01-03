@@ -13,6 +13,7 @@ final class RouteScannerTest extends TestCase
     public function testScannerBuildsEndpoints(): void
     {
         $this->app['router']->get('api/users', [TestController::class, 'index'])->name('users.index');
+        $this->app['router']->get('_debugbar/open', [TestController::class, 'index'])->name('debugbar.openhandler');
 
         $scanner = new RouteScanner($this->app['router'], config('postman-generator'));
         $endpoints = $scanner->scan();
@@ -21,5 +22,6 @@ final class RouteScannerTest extends TestCase
         $this->assertSame('users.index', $endpoints[0]->name);
         $this->assertSame(['GET'], $endpoints[0]->methods);
         $this->assertSame('List users', $endpoints[0]->summary);
+        $this->assertSame('Users', $endpoints[0]->group);
     }
 }

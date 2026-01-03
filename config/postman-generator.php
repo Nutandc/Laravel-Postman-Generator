@@ -20,7 +20,9 @@ return [
     'scan' => [
         'only_methods' => ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
         'include_prefixes' => [],
-        'exclude_prefixes' => ['_ignition', 'telescope', 'horizon'],
+        'exclude_prefixes' => ['_ignition', 'telescope', 'horizon', '_debugbar', 'debugbar', '__clockwork', 'clockwork', 'log-viewer'],
+        'exclude_route_names' => ['debugbar.', 'log-viewer.', 'clockwork.', 'telescope.', 'horizon.', 'ignition.'],
+        'only_middleware' => [],
         'exclude_middleware' => ['web'],
     ],
 
@@ -64,5 +66,13 @@ return [
     'postman' => [
         'name' => env('POSTMAN_GENERATOR_POSTMAN_NAME', 'API Collection'),
         'description' => env('POSTMAN_GENERATOR_POSTMAN_DESCRIPTION', ''),
+        'grouping' => [
+            'enabled' => filter_var(env('POSTMAN_GENERATOR_GROUPING_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
+            'strategy' => env('POSTMAN_GENERATOR_GROUPING_STRATEGY', 'uri'), // uri | name | none
+            'name_separator' => env('POSTMAN_GENERATOR_GROUPING_NAME_SEPARATOR', '.'),
+            'uri_depth' => (int) env('POSTMAN_GENERATOR_GROUPING_URI_DEPTH', 1),
+            'strip_prefixes' => ['api'],
+            'fallback' => env('POSTMAN_GENERATOR_GROUPING_FALLBACK', 'General'),
+        ],
     ],
 ];

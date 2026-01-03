@@ -36,11 +36,41 @@ final class PostmanCollectionBuilder
      */
     private function buildItems(array $config, array $endpoints): array
     {
+        $grouped = $this->groupEndpoints($config, $endpoints);
+        if ($grouped !== null) {
+            return $this->buildGroupedItems($config, $grouped);
+        }
+
         $items = [];
         foreach ($endpoints as $endpoint) {
             foreach ($endpoint->methods as $method) {
                 $items[] = $this->buildItem($config, $endpoint, $method);
             }
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     * @param array<string, Endpoint[]> $grouped
+     * @return array<int, array<string, mixed>>
+     */
+    private function buildGroupedItems(array $config, array $grouped): array
+    {
+        $items = [];
+        foreach ($grouped as $group => $endpoints) {
+            $children = [];
+            foreach ($endpoints as $endpoint) {
+                foreach ($endpoint->methods as $method) {
+                    $children[] = $this->buildItem($config, $endpoint, $method);
+                }
+            }
+
+            $items[] = [
+                'name' => $group,
+                'item' => $children,
+            ];
         }
 
         return $items;
@@ -74,6 +104,29 @@ final class PostmanCollectionBuilder
             'name' => $endpoint->summary ?? $endpoint->name,
             'request' => $request,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     * @param Endpoint[] $endpoints
+     * @return array<string, Endpoint[]>|null
+     */
+    private function groupEndpoints(array $config, array $endpoints): ?array
+    {
+        $enabled = (bool) data_get($config, 'postman.grouping.enabled', true);
+        if (! $enabled) {
+            return null;
+        }
+
+        $groups = [];
+        foreach ($endpoints as $endpoint) {
+            $group = $endpoint->group ?? (string) data_get($config, 'postman.grouping.fallback', 'General');
+            $groups[$group][] = $endpoint;
+        }
+
+        ksort($groups);
+
+        return $groups;
     }
 
     /**

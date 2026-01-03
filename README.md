@@ -12,6 +12,7 @@ Laravel package to generate Postman v2.1 collections and OpenAPI 3.0 specs from 
 - Postman v2.1 collection output
 - OpenAPI 3.0 JSON output
 - Route metadata via PHP attributes
+- Group routes into folders (by URI, name, or tag)
 - Auth support (bearer, api key, basic)
 - Configurable output paths
 
@@ -56,6 +57,30 @@ use Nutandc\PostmanGenerator\Attributes\EndpointDoc;
     ]
 )]
 public function index() {}
+```
+
+## Route Grouping
+By default routes are grouped into folders by the first URI segment (e.g., `api/users` -> `users`).
+You can change grouping strategy in config:
+```php
+'postman' => [
+    'grouping' => [
+        'strategy' => 'name', // uri | name | none
+        'name_separator' => '.',
+        'uri_depth' => 1,
+        'strip_prefixes' => ['api'],
+        'fallback' => 'General',
+    ],
+],
+```
+
+To remove debug routes (debugbar/clockwork/log-viewer), use scan filters:
+```php
+'scan' => [
+    'include_prefixes' => ['api'],
+    'exclude_prefixes' => ['_debugbar', '__clockwork', 'log-viewer'],
+    'exclude_route_names' => ['debugbar.', 'clockwork.', 'log-viewer.'],
+],
 ```
 
 ## Config Highlights

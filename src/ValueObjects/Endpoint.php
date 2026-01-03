@@ -26,6 +26,7 @@ final class Endpoint
         public readonly array $queryParams,
         public readonly array $bodyParams,
         public readonly bool $deprecated,
+        public readonly ?string $group,
     ) {
     }
 }
