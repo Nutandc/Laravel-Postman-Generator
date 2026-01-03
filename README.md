@@ -5,7 +5,7 @@
 [![Total Downloads](https://img.shields.io/packagist/dt/nutandc/laravel-postman-generator)](https://packagist.org/packages/nutandc/laravel-postman-generator)
 [![License](https://img.shields.io/packagist/l/nutandc/laravel-postman-generator)](LICENSE)
 
-Laravel package to generate Postman v2.1 collections and OpenAPI 3.0 specs from your routes.
+Laravel Postman & OpenAPI Generator — auto-create Postman collections and OpenAPI 3.0 docs from Laravel routes with smart grouping, examples, and environment files.
 
 ## Features
 - Auto-scan Laravel routes

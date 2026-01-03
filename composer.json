@@ -1,7 +1,7 @@
 {
     "name": "nutandc/laravel-postman-generator",
     "type": "library",
-    "description": "Laravel Postman Documentation Generator with Postman v2.1 and OpenAPI outputs.",
+    "description": "Laravel Postman & OpenAPI Generator — auto-create Postman collections and OpenAPI 3.0 docs from Laravel routes with smart grouping, examples, and environment files.",
     "license": "MIT",
     "homepage": "https://github.com/Nutandc/Laravel-Postman-Generator",
     "keywords": [
