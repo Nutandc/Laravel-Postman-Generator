@@ -28,7 +28,7 @@ final class RouteScanner
     {
         $endpoints = [];
 
-        foreach ($this->router->getRoutes() as $route) {
+        foreach ($this->router->getRoutes()->getRoutes() as $route) {
             if (! $route instanceof Route) {
                 continue;
             }
@@ -211,9 +211,9 @@ final class RouteScanner
         $params = [];
         foreach ($definitions as $definition) {
             $params[] = new Parameter(
-                name: (string) ($definition['name'] ?? ''),
-                type: (string) ($definition['type'] ?? 'string'),
-                required: (bool) ($definition['required'] ?? false),
+                name: $definition['name'],
+                type: $definition['type'],
+                required: $definition['required'],
                 description: $definition['description'] ?? null,
             );
         }

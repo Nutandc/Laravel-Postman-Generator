@@ -29,6 +29,8 @@ Publish config:
 php artisan vendor:publish --tag=postman-generator-config
 ```
 
+Copy `.env.example` keys into your Laravel `.env` file and update as needed.
+
 ## Usage
 Generate both outputs:
 ```bash
@@ -72,6 +74,7 @@ return [
 ## Testing
 ```bash
 composer test
+composer analyse
 composer fix:dry
 ```
 

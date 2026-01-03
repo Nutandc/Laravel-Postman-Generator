@@ -92,6 +92,10 @@ final class PostmanCollectionBuilder
     /**
      * @return array<string, mixed>
      */
+    /**
+     * @param array<string, mixed> $config
+     * @return array<string, mixed>
+     */
     private function buildUrl(array $config, string $rawUrl, Endpoint $endpoint): array
     {
         $pathSegments = array_values(array_filter(explode('/', trim($endpoint->uri, '/'))));
