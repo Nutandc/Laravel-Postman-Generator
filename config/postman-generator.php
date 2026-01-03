@@ -42,17 +42,37 @@ return [
         ],
     ],
 
+    'headers' => [
+        'default' => [
+            [
+                'name' => env('POSTMAN_GENERATOR_HEADER_ACCEPT_NAME', 'Accept'),
+                'value' => env('POSTMAN_GENERATOR_HEADER_ACCEPT_VALUE', 'application/json'),
+                'required' => filter_var(env('POSTMAN_GENERATOR_HEADER_ACCEPT_REQUIRED', true), FILTER_VALIDATE_BOOLEAN),
+            ],
+        ],
+        'json' => [
+            [
+                'name' => env('POSTMAN_GENERATOR_HEADER_CONTENT_TYPE_NAME', 'Content-Type'),
+                'value' => env('POSTMAN_GENERATOR_HEADER_CONTENT_TYPE_VALUE', 'application/json'),
+                'required' => filter_var(env('POSTMAN_GENERATOR_HEADER_CONTENT_TYPE_REQUIRED', true), FILTER_VALIDATE_BOOLEAN),
+            ],
+        ],
+    ],
+
     'overrides' => [
         // 'route.name' => [
         //     'summary' => 'List users',
         //     'description' => 'Returns paginated users.',
         //     'tags' => ['Users'],
         //     'auth' => 'bearer',
+        //     'headers' => [
+        //         ['name' => 'X-Request-ID', 'value' => '{{request_id}}', 'required' => false],
+        //     ],
         //     'query' => [
-        //         ['name' => 'page', 'type' => 'integer', 'required' => false],
+        //         ['name' => 'page', 'type' => 'integer', 'required' => false, 'example' => 2],
         //     ],
         //     'body' => [
-        //         ['name' => 'email', 'type' => 'string', 'required' => true],
+        //         ['name' => 'email', 'type' => 'string', 'required' => true, 'example' => 'user@example.com'],
         //     ],
         // ],
     ],
@@ -66,6 +86,12 @@ return [
     'postman' => [
         'name' => env('POSTMAN_GENERATOR_POSTMAN_NAME', 'API Collection'),
         'description' => env('POSTMAN_GENERATOR_POSTMAN_DESCRIPTION', ''),
+        'use_base_url_variable' => filter_var(env('POSTMAN_GENERATOR_USE_BASE_URL_VARIABLE', true), FILTER_VALIDATE_BOOLEAN),
+        'variables' => [
+            'base_url' => env('POSTMAN_GENERATOR_POSTMAN_BASE_URL', env('POSTMAN_GENERATOR_BASE_URL', env('APP_URL', 'http://localhost'))),
+            'token' => env('POSTMAN_GENERATOR_POSTMAN_TOKEN', ''),
+            'api_key' => env('POSTMAN_GENERATOR_POSTMAN_API_KEY', ''),
+        ],
         'grouping' => [
             'enabled' => filter_var(env('POSTMAN_GENERATOR_GROUPING_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
             'strategy' => env('POSTMAN_GENERATOR_GROUPING_STRATEGY', 'uri'), // uri | name | none

@@ -14,6 +14,8 @@ Laravel package to generate Postman v2.1 collections and OpenAPI 3.0 specs from 
 - Route metadata via PHP attributes
 - Group routes into folders (by URI, name, or tag)
 - Auth support (bearer, api key, basic)
+- Default headers and sample payloads
+- Postman variables for base URL and tokens
 - Configurable output paths
 
 ## Requirements
@@ -52,8 +54,11 @@ use Nutandc\PostmanGenerator\Attributes\EndpointDoc;
     summary: 'List users',
     tags: ['Users'],
     auth: 'bearer',
+    headers: [
+        ['name' => 'X-Request-ID', 'value' => '{{request_id}}', 'required' => false],
+    ],
     query: [
-        ['name' => 'page', 'type' => 'integer', 'required' => false],
+        ['name' => 'page', 'type' => 'integer', 'required' => false, 'example' => 2],
     ]
 )]
 public function index() {}
@@ -87,11 +92,27 @@ To remove debug routes (debugbar/clockwork/log-viewer), use scan filters:
 ```php
 return [
     'base_url' => env('POSTMAN_GENERATOR_BASE_URL', env('APP_URL', 'http://localhost')),
+    'headers' => [
+        'default' => [
+            ['name' => env('POSTMAN_GENERATOR_HEADER_ACCEPT_NAME', 'Accept'), 'value' => env('POSTMAN_GENERATOR_HEADER_ACCEPT_VALUE', 'application/json')],
+        ],
+        'json' => [
+            ['name' => env('POSTMAN_GENERATOR_HEADER_CONTENT_TYPE_NAME', 'Content-Type'), 'value' => env('POSTMAN_GENERATOR_HEADER_CONTENT_TYPE_VALUE', 'application/json'), 'required' => true],
+        ],
+    ],
     'output' => [
         'path' => storage_path('app/postman'),
     ],
     'auth' => [
         'default' => 'bearer',
+    ],
+    'postman' => [
+        'use_base_url_variable' => true,
+        'variables' => [
+            'base_url' => env('POSTMAN_GENERATOR_POSTMAN_BASE_URL'),
+            'token' => env('POSTMAN_GENERATOR_POSTMAN_TOKEN'),
+            'api_key' => env('POSTMAN_GENERATOR_POSTMAN_API_KEY'),
+        ],
     ],
 ];
 ```

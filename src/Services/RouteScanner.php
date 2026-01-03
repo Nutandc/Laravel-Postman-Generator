@@ -9,6 +9,7 @@ use Illuminate\Routing\Router;
 use Nutandc\PostmanGenerator\Attributes\EndpointDoc;
 use Nutandc\PostmanGenerator\Contracts\EndpointScannerInterface;
 use Nutandc\PostmanGenerator\ValueObjects\Endpoint;
+use Nutandc\PostmanGenerator\ValueObjects\Header;
 use Nutandc\PostmanGenerator\ValueObjects\Parameter;
 use ReflectionClass;
 use ReflectionMethod;
@@ -130,6 +131,7 @@ final class RouteScanner implements EndpointScannerInterface
         $description = null;
         $tags = [];
         $auth = null;
+        $headers = [];
         $queryParams = [];
         $bodyParams = [];
         $deprecated = false;
@@ -141,6 +143,7 @@ final class RouteScanner implements EndpointScannerInterface
             $description = $meta['description'] ?? null;
             $tags = $meta['tags'] ?? [];
             $auth = $meta['auth'] ?? null;
+            $headers = $this->buildHeaders($meta['headers'] ?? []);
             $queryParams = $this->buildParams($meta['query'] ?? []);
             $bodyParams = $this->buildParams($meta['body'] ?? []);
             $deprecated = (bool) ($meta['deprecated'] ?? false);
@@ -162,6 +165,7 @@ final class RouteScanner implements EndpointScannerInterface
             bodyParams: $bodyParams,
             deprecated: $deprecated,
             group: $group,
+            headers: $headers,
         );
     }
 
@@ -217,6 +221,7 @@ final class RouteScanner implements EndpointScannerInterface
             'description' => $instance->description,
             'tags' => $instance->tags,
             'auth' => $instance->auth,
+            'headers' => $instance->headers,
             'query' => $instance->query,
             'body' => $instance->body,
             'deprecated' => $instance->deprecated,
@@ -224,7 +229,7 @@ final class RouteScanner implements EndpointScannerInterface
     }
 
     /**
-     * @param array<int, array{name: string, type: string, required: bool, description?: string}> $definitions
+     * @param array<int, array{name: string, type: string, required: bool, description?: string, example?: mixed}> $definitions
      * @return Parameter[]
      */
     private function buildParams(array $definitions): array
@@ -236,10 +241,34 @@ final class RouteScanner implements EndpointScannerInterface
                 type: $definition['type'],
                 required: $definition['required'],
                 description: $definition['description'] ?? null,
+                example: $definition['example'] ?? null,
             );
         }
 
         return $params;
+    }
+
+    /**
+     * @param array<int, array{name: string, value: string, required?: bool, description?: string}> $definitions
+     * @return Header[]
+     */
+    private function buildHeaders(array $definitions): array
+    {
+        $headers = [];
+        foreach ($definitions as $definition) {
+            if (! isset($definition['name'], $definition['value'])) {
+                continue;
+            }
+
+            $headers[] = new Header(
+                name: (string) $definition['name'],
+                value: (string) $definition['value'],
+                required: (bool) ($definition['required'] ?? false),
+                description: $definition['description'] ?? null,
+            );
+        }
+
+        return $headers;
     }
 
     /**

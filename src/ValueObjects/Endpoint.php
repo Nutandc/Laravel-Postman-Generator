@@ -12,6 +12,7 @@ final class Endpoint
      * @param Parameter[] $pathParams
      * @param Parameter[] $queryParams
      * @param Parameter[] $bodyParams
+     * @param Header[] $headers
      */
     public function __construct(
         public readonly string $uri,
@@ -27,6 +28,7 @@ final class Endpoint
         public readonly array $bodyParams,
         public readonly bool $deprecated,
         public readonly ?string $group,
+        public readonly array $headers,
     ) {
     }
 }

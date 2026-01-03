@@ -6,6 +6,7 @@ namespace Nutandc\PostmanGenerator\Builders;
 
 use Nutandc\PostmanGenerator\Helpers\ExampleValueResolver;
 use Nutandc\PostmanGenerator\ValueObjects\Endpoint;
+use Nutandc\PostmanGenerator\ValueObjects\Header;
 use Nutandc\PostmanGenerator\ValueObjects\Parameter;
 
 final class PostmanCollectionBuilder
@@ -23,10 +24,17 @@ final class PostmanCollectionBuilder
             'schema' => 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json',
         ];
 
-        return [
+        $collection = [
             'info' => $info,
             'item' => $this->buildItems($config, $endpoints),
         ];
+
+        $variables = $this->buildVariables($config);
+        if ($variables !== []) {
+            $collection['variable'] = $variables;
+        }
+
+        return $collection;
     }
 
     /**
@@ -82,18 +90,24 @@ final class PostmanCollectionBuilder
      */
     private function buildItem(array $config, Endpoint $endpoint, string $method): array
     {
-        $baseUrl = (string) data_get($config, 'base_url', '');
+        $baseUrl = $this->resolveBaseUrl($config);
         $path = '/' . ltrim($endpoint->uri, '/');
         $rawUrl = rtrim($baseUrl, '/') . $path;
+        $hasBody = $this->shouldIncludeBody($endpoint, $method);
 
         $request = [
             'method' => $method,
-            'header' => $this->buildAuthHeaders($config, $endpoint),
+            'header' => $this->buildHeaders($config, $endpoint, $hasBody),
             'url' => $this->buildUrl($config, $rawUrl, $endpoint),
-            'description' => $endpoint->description ?? $endpoint->summary ?? '',
+            'description' => $this->buildDescription($endpoint),
         ];
 
-        if ($endpoint->bodyParams !== []) {
+        $auth = $this->buildAuth($config, $endpoint);
+        if ($auth !== null) {
+            $request['auth'] = $auth;
+        }
+
+        if ($hasBody) {
             $request['body'] = [
                 'mode' => 'raw',
                 'raw' => json_encode($this->buildBodyExample($endpoint->bodyParams), JSON_PRETTY_PRINT),
@@ -137,15 +151,12 @@ final class PostmanCollectionBuilder
     {
         $example = [];
         foreach ($params as $param) {
-            $example[$param->name] = ExampleValueResolver::valueForType($param->type);
+            $example[$param->name] = $this->exampleValue($param);
         }
 
         return $example;
     }
 
-    /**
-     * @return array<string, mixed>
-     */
     /**
      * @param array<string, mixed> $config
      * @return array<string, mixed>
@@ -157,7 +168,7 @@ final class PostmanCollectionBuilder
         foreach ($endpoint->pathParams as $param) {
             $variables[] = [
                 'key' => $param->name,
-                'value' => ExampleValueResolver::valueForType($param->type),
+                'value' => $this->exampleValue($param),
             ];
         }
 
@@ -165,8 +176,9 @@ final class PostmanCollectionBuilder
         foreach ($endpoint->queryParams as $param) {
             $query[] = [
                 'key' => $param->name,
-                'value' => ExampleValueResolver::valueForType($param->type),
+                'value' => $this->exampleValue($param),
                 'disabled' => ! $param->required,
+                'description' => $param->description ?? '',
             ];
         }
 
@@ -178,79 +190,6 @@ final class PostmanCollectionBuilder
             'variable' => $variables,
             'query' => $query,
         ];
-    }
-
-    /**
-     * @param array<string, mixed> $config
-     * @return array<int, array<string, string>>
-     */
-    private function buildAuthHeaders(array $config, Endpoint $endpoint): array
-    {
-        $auth = $endpoint->auth ?? data_get($config, 'auth.default', 'none');
-
-        return match ($auth) {
-            'bearer' => $this->buildBearerHeaders($config),
-            'api_key' => $this->buildApiKeyHeaders($config),
-            'basic' => $this->buildBasicHeaders($config),
-            default => [],
-        };
-    }
-
-    /**
-     * @param array<string, mixed> $config
-     * @return array<int, array<string, string>>
-     */
-    private function buildBearerHeaders(array $config): array
-    {
-        $token = (string) data_get($config, 'auth.bearer.token', '');
-        if ($token === '') {
-            return [];
-        }
-
-        return [[
-            'key' => 'Authorization',
-            'value' => 'Bearer ' . $token,
-        ]];
-    }
-
-    /**
-     * @param array<string, mixed> $config
-     * @return array<int, array<string, string>>
-     */
-    private function buildApiKeyHeaders(array $config): array
-    {
-        $key = (string) data_get($config, 'auth.api_key.key', 'X-API-KEY');
-        $value = (string) data_get($config, 'auth.api_key.value', '');
-        $location = (string) data_get($config, 'auth.api_key.in', 'header');
-
-        if ($value === '' || $location !== 'header') {
-            return [];
-        }
-
-        return [[
-            'key' => $key,
-            'value' => $value,
-        ]];
-    }
-
-    /**
-     * @param array<string, mixed> $config
-     * @return array<int, array<string, string>>
-     */
-    private function buildBasicHeaders(array $config): array
-    {
-        $user = (string) data_get($config, 'auth.basic.username', '');
-        $pass = (string) data_get($config, 'auth.basic.password', '');
-        if ($user === '' && $pass === '') {
-            return [];
-        }
-
-        $token = base64_encode($user . ':' . $pass);
-
-        return [[
-            'key' => 'Authorization',
-            'value' => 'Basic ' . $token,
-        ]];
     }
 
     /**
@@ -272,13 +211,275 @@ final class PostmanCollectionBuilder
 
         $key = (string) data_get($config, 'auth.api_key.key', 'api_key');
         $value = (string) data_get($config, 'auth.api_key.value', '');
+        if ($value === '' && $this->hasVariable($config, 'api_key')) {
+            $value = $this->variablePlaceholder('api_key');
+        }
 
         $query[] = [
             'key' => $key,
-            'value' => $value === '' ? 'api-key' : $value,
+            'value' => $value,
             'disabled' => false,
         ];
 
         return $query;
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     * @return array<int, array<string, mixed>>
+     */
+    private function buildHeaders(array $config, Endpoint $endpoint, bool $hasBody): array
+    {
+        $defaults = $this->buildHeaderObjects((array) data_get($config, 'headers.default', []));
+        $jsonHeaders = $hasBody ? $this->buildHeaderObjects((array) data_get($config, 'headers.json', [])) : [];
+
+        $headers = $this->mergeHeaders($defaults, $jsonHeaders, $endpoint->headers);
+
+        return $this->formatHeaders($headers);
+    }
+
+    /**
+     * @param array<int, array{name: string, value: string, required?: bool, description?: string}> $definitions
+     * @return Header[]
+     */
+    private function buildHeaderObjects(array $definitions): array
+    {
+        $headers = [];
+        foreach ($definitions as $definition) {
+            if (! isset($definition['name'], $definition['value'])) {
+                continue;
+            }
+
+            $headers[] = new Header(
+                name: (string) $definition['name'],
+                value: (string) $definition['value'],
+                required: (bool) ($definition['required'] ?? false),
+                description: $definition['description'] ?? null,
+            );
+        }
+
+        return $headers;
+    }
+
+    /**
+     * @param Header[] ...$groups
+     * @return Header[]
+     */
+    private function mergeHeaders(array ...$groups): array
+    {
+        $merged = [];
+        foreach ($groups as $group) {
+            foreach ($group as $header) {
+                $merged[strtolower($header->name)] = $header;
+            }
+        }
+
+        return array_values($merged);
+    }
+
+    /**
+     * @param Header[] $headers
+     * @return array<int, array<string, mixed>>
+     */
+    private function formatHeaders(array $headers): array
+    {
+        $items = [];
+        foreach ($headers as $header) {
+            $item = [
+                'key' => $header->name,
+                'value' => $header->value,
+                'disabled' => ! $header->required,
+            ];
+
+            if ($header->description !== null) {
+                $item['description'] = $header->description;
+            }
+
+            $items[] = $item;
+        }
+
+        return $items;
+    }
+
+    private function buildDescription(Endpoint $endpoint): string
+    {
+        if ($endpoint->summary && $endpoint->description) {
+            return $endpoint->summary . "\n\n" . $endpoint->description;
+        }
+
+        return $endpoint->description ?? $endpoint->summary ?? '';
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     * @return array<string, mixed>|null
+     */
+    private function buildAuth(array $config, Endpoint $endpoint): ?array
+    {
+        $auth = $endpoint->auth ?? data_get($config, 'auth.default', 'none');
+
+        return match ($auth) {
+            'bearer' => $this->buildBearerAuth($config),
+            'api_key' => $this->buildApiKeyAuth($config),
+            'basic' => $this->buildBasicAuth($config),
+            default => null,
+        };
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     * @return array<string, mixed>
+     */
+    private function buildBearerAuth(array $config): array
+    {
+        $token = (string) data_get($config, 'auth.bearer.token', '');
+        if ($token === '' && $this->hasVariable($config, 'token')) {
+            $token = $this->variablePlaceholder('token');
+        }
+
+        return [
+            'type' => 'bearer',
+            'bearer' => [
+                [
+                    'key' => 'token',
+                    'value' => $token,
+                    'type' => 'string',
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     * @return array<string, mixed>
+     */
+    private function buildApiKeyAuth(array $config): array
+    {
+        $key = (string) data_get($config, 'auth.api_key.key', 'X-API-KEY');
+        $value = (string) data_get($config, 'auth.api_key.value', '');
+        $location = (string) data_get($config, 'auth.api_key.in', 'header');
+
+        if ($value === '' && $this->hasVariable($config, 'api_key')) {
+            $value = $this->variablePlaceholder('api_key');
+        }
+
+        return [
+            'type' => 'apikey',
+            'apikey' => [
+                [
+                    'key' => 'key',
+                    'value' => $key,
+                    'type' => 'string',
+                ],
+                [
+                    'key' => 'value',
+                    'value' => $value,
+                    'type' => 'string',
+                ],
+                [
+                    'key' => 'in',
+                    'value' => $location,
+                    'type' => 'string',
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     * @return array<string, mixed>
+     */
+    private function buildBasicAuth(array $config): array
+    {
+        $user = (string) data_get($config, 'auth.basic.username', '');
+        $pass = (string) data_get($config, 'auth.basic.password', '');
+
+        return [
+            'type' => 'basic',
+            'basic' => [
+                [
+                    'key' => 'username',
+                    'value' => $user,
+                    'type' => 'string',
+                ],
+                [
+                    'key' => 'password',
+                    'value' => $pass,
+                    'type' => 'string',
+                ],
+            ],
+        ];
+    }
+
+    private function exampleValue(Parameter $param): mixed
+    {
+        return $param->example ?? ExampleValueResolver::valueForType($param->type);
+    }
+
+    private function shouldIncludeBody(Endpoint $endpoint, string $method): bool
+    {
+        if ($endpoint->bodyParams === []) {
+            return false;
+        }
+
+        return in_array($method, ['POST', 'PUT', 'PATCH'], true);
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     * @return array<int, array<string, string>>
+     */
+    private function buildVariables(array $config): array
+    {
+        $input = (array) data_get($config, 'postman.variables', []);
+        $useBaseUrlVariable = (bool) data_get($config, 'postman.use_base_url_variable', false);
+        if ($useBaseUrlVariable) {
+            $baseUrl = (string) data_get($config, 'base_url', '');
+            if (! array_key_exists('base_url', $input) || $input['base_url'] === '') {
+                $input['base_url'] = $baseUrl;
+            }
+        }
+
+        $variables = [];
+        foreach ($input as $key => $value) {
+            if (! is_string($key) || $key === '') {
+                continue;
+            }
+
+            $variables[] = [
+                'key' => $key,
+                'value' => is_scalar($value) ? (string) $value : '',
+            ];
+        }
+
+        return $variables;
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     */
+    private function resolveBaseUrl(array $config): string
+    {
+        $useVariable = (bool) data_get($config, 'postman.use_base_url_variable', false);
+        if ($useVariable && $this->hasVariable($config, 'base_url')) {
+            return $this->variablePlaceholder('base_url');
+        }
+
+        return (string) data_get($config, 'base_url', '');
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     */
+    private function hasVariable(array $config, string $key): bool
+    {
+        $variables = (array) data_get($config, 'postman.variables', []);
+
+        return array_key_exists($key, $variables);
+    }
+
+    private function variablePlaceholder(string $key): string
+    {
+        return '{{' . $key . '}}';
     }
 }

@@ -6,6 +6,7 @@ namespace Nutandc\PostmanGenerator\Builders;
 
 use Nutandc\PostmanGenerator\Helpers\ExampleValueResolver;
 use Nutandc\PostmanGenerator\ValueObjects\Endpoint;
+use Nutandc\PostmanGenerator\ValueObjects\Header;
 use Nutandc\PostmanGenerator\ValueObjects\Parameter;
 
 final class OpenApiBuilder
@@ -48,6 +49,7 @@ final class OpenApiBuilder
     private function buildOperation(array $config, Endpoint $endpoint, string $method): array
     {
         $parameters = array_merge(
+            $this->buildHeaderParameters($endpoint->headers),
             $this->buildParameterList($endpoint->pathParams, 'path'),
             $this->buildParameterList($endpoint->queryParams, 'query'),
         );
@@ -98,7 +100,7 @@ final class OpenApiBuilder
     {
         $result = [];
         foreach ($params as $param) {
-            $result[] = [
+            $entry = [
                 'name' => $param->name,
                 'in' => $in,
                 'required' => $param->required,
@@ -107,6 +109,40 @@ final class OpenApiBuilder
                     'type' => ExampleValueResolver::openApiType($param->type),
                 ],
             ];
+
+            if ($param->example !== null) {
+                $entry['example'] = $param->example;
+            }
+
+            $result[] = $entry;
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param Header[] $headers
+     * @return array<int, array<string, mixed>>
+     */
+    private function buildHeaderParameters(array $headers): array
+    {
+        $result = [];
+        foreach ($headers as $header) {
+            $entry = [
+                'name' => $header->name,
+                'in' => 'header',
+                'required' => $header->required,
+                'description' => $header->description ?? '',
+                'schema' => [
+                    'type' => 'string',
+                ],
+            ];
+
+            if ($header->value !== '') {
+                $entry['example'] = $header->value;
+            }
+
+            $result[] = $entry;
         }
 
         return $result;
@@ -124,6 +160,10 @@ final class OpenApiBuilder
                 'type' => ExampleValueResolver::openApiType($param->type),
                 'description' => $param->description ?? '',
             ];
+
+            if ($param->example !== null) {
+                $properties[$param->name]['example'] = $param->example;
+            }
         }
 
         return $properties;
@@ -137,7 +177,7 @@ final class OpenApiBuilder
     {
         $example = [];
         foreach ($params as $param) {
-            $example[$param->name] = $this->exampleForType($param->type);
+            $example[$param->name] = $this->exampleValue($param);
         }
 
         return $example;
@@ -175,8 +215,8 @@ final class OpenApiBuilder
         };
     }
 
-    private function exampleForType(string $type): mixed
+    private function exampleValue(Parameter $param): mixed
     {
-        return ExampleValueResolver::valueForType($type);
+        return $param->example ?? ExampleValueResolver::valueForType($param->type);
     }
 }

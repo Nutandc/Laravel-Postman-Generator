@@ -23,5 +23,7 @@ final class RouteScannerTest extends TestCase
         $this->assertSame(['GET'], $endpoints[0]->methods);
         $this->assertSame('List users', $endpoints[0]->summary);
         $this->assertSame('Users', $endpoints[0]->group);
+        $this->assertSame('X-Request-ID', $endpoints[0]->headers[0]->name);
+        $this->assertSame(2, $endpoints[0]->queryParams[0]->example);
     }
 }
