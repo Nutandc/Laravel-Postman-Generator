@@ -7,9 +7,9 @@ namespace Nutandc\PostmanGenerator\Services;
 use Illuminate\Routing\Route;
 use Illuminate\Routing\Router;
 use Nutandc\PostmanGenerator\Attributes\EndpointDoc;
+use Nutandc\PostmanGenerator\Contracts\EndpointScannerInterface;
 use Nutandc\PostmanGenerator\ValueObjects\Endpoint;
 use Nutandc\PostmanGenerator\ValueObjects\Parameter;
-use Nutandc\PostmanGenerator\Contracts\EndpointScannerInterface;
 use ReflectionClass;
 use ReflectionMethod;
 
